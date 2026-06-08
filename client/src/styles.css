@@ -63,7 +63,7 @@ h2 { font-size: 1.15rem; }
 .navLinks a { align-items: center; display: inline-flex; gap: 6px; }
 .menuButton { display: none; }
 .logoutButton { margin-left: auto; }
-.shell { margin: 0 auto; max-width: 1180px; padding: 28px min(4vw, 40px) 80px; }
+.shell { margin: 0 auto; max-width: 1180px; padding: 28px min(4vw, 40px) 140px; }
 .auth { align-items: center; display: grid; min-height: 100vh; padding: 20px; }
 .auth .panel { margin: auto; max-width: 430px; width: 100%; }
 .panel, .card, .row, .comment {
@@ -242,7 +242,7 @@ h2 { font-size: 1.15rem; }
   max-width: 100%;
   width: 100%;
 }
-.submitBar { bottom: 18px; box-shadow: 0 12px 24px rgb(15 23 42 / 18%); position: sticky; width: 100%; }
+.submitBar { bottom: 18px; box-shadow: 0 12px 24px rgb(15 23 42 / 18%); position: fixed; left: 0; right: 0; margin: 0 auto; width: calc(100% - 36px); max-width: 1180px; border-radius: 8px; z-index: 20; }
 .comment { margin-bottom: 10px; padding: 14px; }
 .tag {
   border-radius: 999px;

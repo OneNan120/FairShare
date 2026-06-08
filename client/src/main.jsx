@@ -613,7 +613,7 @@ function NewExpense() {
       {message && <p className="notice">{message}</p>}
       <p className="notice">We strongly encourage you to review the receipt details before you submit the expense.</p>
       <ReceiptEditor receipt={receipt} setReceipt={setReceipt} members={group.members} defaultAssignmentMode="even" />
-      <button className="submitBar" onClick={submit}><Check size={18} /> Submit expense for approval</button>
+      <button type="button" className="submitBar" onClick={submit}><Check size={18} /> Submit expense for approval</button>
     </Layout>
   );
 }
@@ -717,6 +717,15 @@ function ExpenseDetail() {
       else setMessage(err.message);
     }
   }
+  async function deleteExpense() {
+    if (!window.confirm('Delete this expense? This cannot be undone.')) return;
+    try {
+      await api(`/api/expenses/${expenseId}`, { method: 'DELETE' });
+      navigate(`/groups/${expense.groupId}`);
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
   if (loading || error || !expense) return <Layout><StatusPanel loading={loading} error={error || (!expense && 'Expense not found.')} onRetry={load} /></Layout>;
   const approvals = approvalSummary(expense.approvalStatus);
   const myApproval = expense.approvalStatus?.[user.id];
@@ -726,10 +735,10 @@ function ExpenseDetail() {
       <section className="sectionHead">
         <BackLink to={`/groups/${expense.groupId}`} />
         <div><h1>{expense.title}</h1><p>{[expense.merchant, expense.date, expense.status].filter(Boolean).join(' · ')}</p>{approvals.allApproved ? <p><strong>Final total:</strong> {money(expense.total)}</p> : <p className="notice">Final total is hidden until every involved member approves. Waiting on: {pendingApprovers.join(', ') || 'assigned members'}.</p>}</div>
-        <span className="actionGroup"><button onClick={() => setEditMode(!editMode)}><Edit size={18} /> {editMode ? 'Cancel edit' : 'Edit expense'}</button>{myApproval === 'approved' ? <span className="approvedBadge"><Check size={18} /> You approved</span> : <button onClick={approve}><Check size={18} /> {myApproval === 'disputed' ? 'Approve after dispute' : 'Approve'}</button>}</span>
+        <span className="actionGroup"><button type="button" onClick={() => setEditMode(!editMode)}><Edit size={18} /> {editMode ? 'Cancel edit' : 'Edit expense'}</button>{myApproval === 'approved' ? <span className="approvedBadge"><Check size={18} /> You approved</span> : <button type="button" onClick={approve}><Check size={18} /> {myApproval === 'disputed' ? 'Approve after dispute' : 'Approve'}</button>}<button type="button" className="ghost" onClick={deleteExpense}><X size={18} /> Delete</button></span>
       </section>
       {message && <p className="notice">{message}</p>}
-      {editMode && <section><ReceiptEditor receipt={editReceipt} setReceipt={setEditReceipt} members={expense.members || []} defaultAssignmentMode="manual" /><button className="submitBar" onClick={saveEdits}><Check size={18} /> Save updates and request approval again</button></section>}
+      {editMode && <section><ReceiptEditor receipt={editReceipt} setReceipt={setEditReceipt} members={expense.members || []} defaultAssignmentMode="manual" /><button type="button" className="submitBar" onClick={saveEdits}><Check size={18} /> Save updates and request approval again</button></section>}
       <div className="grid">
         <section><h2>Items</h2>{expense.imageDataUrl && <img className="receiptImage" src={expense.imageDataUrl} alt={`Receipt for ${expense.title}`} />}{expense.items.map((item) => <article className="row" key={item.id}>{item.name}<strong>{money(item.price)}</strong></article>)}</section>
         <section><h2>Amount owed</h2><BalanceChart rows={Object.values(expense.split || {})} /><SplitPreview rows={Object.values(expense.split || {})} /></section>
