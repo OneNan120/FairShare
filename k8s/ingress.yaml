@@ -3,15 +3,21 @@ kind: Ingress
 metadata:
   name: fairshare
   annotations:
-    kubernetes.io/ingress.class: gce
-    networking.gke.io/managed-certificates: fairshare-cert
+    kubernetes.io/ingress.class: "gce"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    kubernetes.io/ingress.allow-http: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
 spec:
+  tls:
+    - hosts:
+        - 34.102.228.238.sslip.io
+      secretName: fairshare-tls
   rules:
-    - host: fairshare.example.com
+    - host: 34.102.228.238.sslip.io
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          - path: /*
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: fairshare

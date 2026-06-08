@@ -1,0 +1,42 @@
+yqiu0@OneNan:~/cs144/FairShare$ kubectl get pods
+kubectl get nodes
+kubectl get service fairshare
+kubectl get ingress fairshare
+kubectl get certificate
+curl -I https://34.102.228.238.sslip.io/api/health
+NAME                         READY   STATUS    RESTARTS   AGE
+fairshare-559664d8cd-8r7c8   1/1     Running   0          9m58s
+fairshare-559664d8cd-k2pf4   1/1     Running   0          10m
+NAME                                                 STATUS   ROLES    AGE   VERSION
+gke-fairshare-cluster-firestore-pool-0c5c71b2-pm9z   Ready    <none>   11m   v1.35.3-gke.2190000
+gke-fairshare-cluster-firestore-pool-0c5c71b2-tdwb   Ready    <none>   11m   v1.35.3-gke.2190000
+NAME        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+fairshare   ClusterIP   34.118.238.189   <none>        80/TCP    64m
+NAME        CLASS    HOSTS                     ADDRESS          PORTS     AGE
+fairshare   <none>   34.102.228.238.sslip.io   34.102.228.238   80, 443   60m
+NAME            READY   SECRET          AGE
+fairshare-tls   True    fairshare-tls   32m
+HTTP/2 200 
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+access-control-allow-origin: http://localhost:5173
+vary: Origin
+access-control-allow-credentials: true
+x-ratelimit-limit: 300
+x-ratelimit-remaining: 299
+date: Mon, 08 Jun 2026 09:40:16 GMT
+x-ratelimit-reset: 1780912517
+content-type: application/json; charset=utf-8
+content-length: 112
+etag: W/"70-IK6N7p4O/7T5YauGI7v5BGKXxag"
+via: 1.1 google
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000

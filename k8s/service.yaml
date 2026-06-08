@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: fairshare
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: fairshare
   ports:

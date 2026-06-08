@@ -28,7 +28,7 @@ npm run docker:run
 
 The API runs on `http://localhost:8080`; Vite runs on `http://localhost:5173` and proxies `/api`.
 
-Without Firestore credentials, the server uses in-memory data so the demo flow still works locally. Set `FIRESTORE_PROJECT_ID` and Google credentials to use Firestore.
+Without Firestore credentials, the server uses in-memory data so the demo flow still works locally. For local development, set `USE_IN_MEMORY_DB=true` or `FIRESTORE_PROJECT_ID=local` in `server/.env`. Set `FIRESTORE_PROJECT_ID` and Google credentials to use Firestore in production.
 
 ### Test Users
 
