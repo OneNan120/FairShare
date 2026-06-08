@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fairshare
+  annotations:
+    kubernetes.io/ingress.class: gce
+    networking.gke.io/managed-certificates: fairshare-cert
+spec:
+  rules:
+    - host: fairshare.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fairshare
+                port:
+                  number: 80

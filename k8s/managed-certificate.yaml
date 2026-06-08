@@ -1,0 +1,7 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: fairshare-cert
+spec:
+  domains:
+    - fairshare.example.com
