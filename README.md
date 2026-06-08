@@ -181,36 +181,6 @@ Deployed health check:
 curl -I https://34.102.228.238.sslip.io/api/health
 ```
 
-## Demo Flow
-
-1. Register or log in.
-2. Create a group named `Vegas Trip`.
-3. Invite or add Yinan, Alice, Bob, and Chloe.
-4. Create a new expense.
-5. Upload a receipt image or paste receipt text.
-6. Use Gemini to extract receipt fields.
-7. Check and manually correct the extracted receipt fields.
-8. Show this message in the app where appropriate:
-
-```text
-We strongly encourage you to review the receipt details before you submit the expense.
-```
-
-9. Drag item cards onto member cards.
-10. Exclude uninvolved members by leaving them unassigned.
-11. Submit the expense.
-12. View split totals, Canvas chart, pending approvals, comments, disputes, and SSE notifications.
-
-For the recorded course demo, also show:
-
-* HTTPS deployed app
-* GKE Ingress/load balancer address
-* PWA offline behavior
-* Server-Sent Events notification triggered by backend behavior
-* Pod self-healing after deleting one pod
-* Manual replica scaling down and back up
-* Successful GitHub Actions build/deploy logs
-
 ## Deployment
 
 FairShare is deployed to GKE using Docker, Artifact Registry, GitHub Actions, Firestore, GKE Ingress, cert-manager, and Let's Encrypt.
