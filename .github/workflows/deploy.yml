@@ -1,80 +1,78 @@
 name: Build and Deploy FairShare
 
 on:
-push:
-branches: [main]
-workflow_dispatch:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 env:
-IMAGE_NAME: fairshare
+  IMAGE_NAME: fairshare
 
 jobs:
-deploy:
-runs-on: ubuntu-latest
-permissions:
-contents: read
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
-```
-steps:
-  - name: Check out repository
-    uses: actions/checkout@v4
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-  - name: Set up Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: 20
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-  - name: Install dependencies
-    run: npm run install:all
+      - name: Install dependencies
+        run: npm run install:all
 
-  - name: Run project checks
-    run: npm run check
+      - name: Run project checks
+        run: npm run check
 
-  - name: Test backend
-    run: npm test --prefix server
+      - name: Test backend
+        run: npm test --prefix server
 
-  - name: Build client
-    run: npm run build --prefix client
+      - name: Build client
+        run: npm run build --prefix client
 
-  - name: Authenticate to Google Cloud
-    uses: google-github-actions/auth@v2
-    with:
-      credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-  - name: Set up Google Cloud SDK
-    uses: google-github-actions/setup-gcloud@v2
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-  - name: Configure Docker for Artifact Registry
-    run: gcloud auth configure-docker ${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev --quiet
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev --quiet
 
-  - name: Build Docker image
-    run: |
-      docker build \
-        -t ${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/fairshare:${{ github.sha }} \
-        .
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/fairshare:${{ github.sha }} \
+            .
 
-  - name: Push Docker image
-    run: |
-      docker push \
-        ${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/fairshare:${{ github.sha }}
+      - name: Push Docker image
+        run: |
+          docker push \
+            ${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/fairshare:${{ github.sha }}
 
-  - name: Get GKE credentials
-    run: |
-      gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} \
-        --zone ${{ secrets.GKE_ZONE }} \
-        --project ${{ secrets.GCP_PROJECT_ID }}
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} \
+            --zone ${{ secrets.GKE_ZONE }} \
+            --project ${{ secrets.GCP_PROJECT_ID }}
 
-  - name: Apply Kubernetes manifests
-    run: |
-      kubectl apply -f k8s/cluster-issuer.yaml
-      kubectl apply -f k8s/service.yaml
-      kubectl apply -f k8s/deployment.yaml
-      kubectl apply -f k8s/ingress.yaml
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/cluster-issuer.yaml
+          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/ingress.yaml
 
-  - name: Deploy new image
-    run: |
-      kubectl set image deployment/fairshare \
-        fairshare=${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/fairshare:${{ github.sha }}
+      - name: Deploy new image
+        run: |
+          kubectl set image deployment/fairshare \
+            fairshare=${{ secrets.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/fairshare:${{ github.sha }}
 
-      kubectl rollout status deployment/fairshare
-```
+          kubectl rollout status deployment/fairshare
