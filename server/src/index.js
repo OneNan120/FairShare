@@ -290,8 +290,8 @@ async function callGemini(parts) {
     console.error('[gemini] GEMINI_API_KEY is not configured. Falling back to local receipt parsing.');
     throw new Error('GEMINI_API_KEY is not configured.');
   }
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-  const fallbackModel = process.env.GEMINI_MODEL_FALLBACK || 'gemini-1.5-flash';
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const fallbackModel = process.env.GEMINI_MODEL_FALLBACK || 'gemini-2.5-flash-lite';
   const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS || 20000);
 
   async function requestModel(model) {

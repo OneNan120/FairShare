@@ -10,6 +10,8 @@
     "dev:server": "npm run dev --prefix server",
     "build": "npm run build --prefix client",
     "test": "npm test --prefix server",
-    "check": "npm run test && npm run build"
+    "check": "npm run test && npm run build",
+    "docker:build": "docker build -t fairshare .",
+    "docker:run": "docker run --env-file server/.env -p 8080:8080 fairshare"
   }
 }

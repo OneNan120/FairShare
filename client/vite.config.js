@@ -26,14 +26,7 @@ export default defineConfig(async () => {
         icons: [{ src: '/favicon.svg', sizes: '64x64', type: 'image/svg+xml', purpose: 'any maskable' }]
       },
       workbox: {
-        navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: { cacheName: 'fairshare-api', expiration: { maxEntries: 40 } }
-          }
-        ]
+        navigateFallback: '/index.html'
       }
       })
     ],
