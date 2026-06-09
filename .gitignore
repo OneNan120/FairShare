@@ -8,3 +8,4 @@ coverage/
 uploads/
 *.log
 !logs/*.log
+gcp-sa-key.json
