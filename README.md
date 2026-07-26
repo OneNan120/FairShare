@@ -1,326 +1,158 @@
 # FairShare
 
-FairShare is an AI-assisted group receipt splitter. Users upload a receipt image or paste receipt text, Gemini extracts the receipt fields, the payer checks and edits the receipt details, assigns each item to the correct group members, and involved members approve, dispute, and comment on the final split.
+### AI-assisted receipt splitting for groups
 
-FairShare supports itemized splitting with proportional tax/tip, Server-Sent Events notifications, a Canvas balance chart, Drag and Drop item assignment, PWA offline behavior, and HTTPS deployment on Google Kubernetes Engine.
+[Deployment](#deployment) · [Architecture](ARCHITECTURE.md) · [Data Model](DATABASE.md)
 
-## Tech Stack
+> **Demo status:** The public GKE cluster is currently shut down to avoid ongoing cloud costs. The application remains fully reproducible locally using the instructions below.
 
-* React, Vite, React Router, plain CSS, Vite PWA plugin
-* Node.js, Express, JWT HTTP-only cookies, bcrypt, helmet, cors, rate limiting, multer
-* Firestore SDK with an in-memory fallback for local development
-* Gemini API for receipt image and text parsing
-* Server-Sent Events for notifications
-* HTML5 Canvas API for balance visualization
-* HTML5 Drag and Drop API for item assignment
-* Docker, Google Artifact Registry, GKE, GitHub Actions
-* cert-manager + Let's Encrypt for HTTPS
+FairShare turns a shared receipt into a transparent, itemized expense split. Upload a receipt image or paste its text, review the fields extracted by Gemini, assign items to group members, and let FairShare distribute tax and tip proportionally. Members can then approve or dispute their share and discuss corrections in one place.
 
-## Deployed App
+This full-stack project was built to explore a practical AI workflow: automation speeds up data entry, while the user remains in control of every value before it is saved.
 
-Production deployment:
+## Product highlights
+
+- **AI-assisted receipt capture** — Gemini extracts merchants, line items, quantities, tax, tip, and totals from receipt images or text.
+- **Human-in-the-loop review** — extracted values remain editable and are never saved automatically.
+- **Itemized group splitting** — items can be assigned by drag and drop, including shared items; tax and tip are allocated in proportion to each member's subtotal.
+- **Collaborative approval flow** — members can accept invitations, approve or dispute expenses, and leave comments.
+- **Real-time updates** — Server-Sent Events deliver in-app expense and approval notifications without polling.
+- **Resilient experience** — the installable PWA caches its application shell and reports offline state.
+- **Production deployment** — a multi-stage Docker image runs on Google Kubernetes Engine with Firestore, HTTPS, health probes, two replicas, and automated GitHub Actions deployment.
+
+## How it works
 
 ```text
-https://34.102.228.238.sslip.io
+Receipt image or text
+        ↓
+Gemini extraction + server-side normalization
+        ↓
+Editable receipt review
+        ↓
+Drag-and-drop item assignment
+        ↓
+Proportional tax and tip calculation
+        ↓
+Member approval, disputes, comments, and live notifications
 ```
 
-The app is deployed to Google Kubernetes Engine behind a GKE Ingress. HTTPS is provided by cert-manager and Let's Encrypt using the `34.102.228.238.sslip.io` hostname.
+## Engineering highlights
 
-## Local Setup
+FairShare is a React single-page application backed by an Express REST API. Authentication uses signed JWTs stored in HTTP-only cookies, while Helmet, CORS, rate limiting, upload type checks, and a 5 MB upload limit protect the API.
 
-Create the local server environment file:
+The receipt parser validates and normalizes Gemini output before returning it to the client. If AI is unavailable, text receipts fall back to local pattern-based parsing so the workflow can continue. The split calculation is isolated as a tested domain function and handles shared items plus proportional tax and tip with currency rounding.
+
+In production, Express serves both the API and the compiled React app from one container:
+
+```text
+React PWA ── REST + SSE ──> Express API ──> Firestore
+                                  │
+                                  └────────> Gemini API
+
+GitHub Actions ──> Artifact Registry ──> GKE
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design and [DATABASE.md](DATABASE.md) for the Firestore schema.
+
+## Tech stack
+
+| Area | Technologies |
+| --- | --- |
+| Frontend | React 18, Vite, React Router, CSS, Canvas API, Drag and Drop API, PWA |
+| Backend | Node.js, Express, JWT, bcrypt, Server-Sent Events, Multer |
+| AI and data | Gemini API, Google Cloud Firestore |
+| Security | HTTP-only cookies, Helmet, CORS, rate limiting, input and upload validation |
+| Delivery | Docker, GitHub Actions, Artifact Registry, GKE, Kubernetes, cert-manager |
+| Testing | Node.js test runner |
+
+## Run locally
+
+### Prerequisites
+
+- Node.js 20+
+- npm
+- A Gemini API key is optional; without one, pasted receipt text uses the local fallback parser
+
+### 1. Configure the server
 
 ```bash
-cp .env.example ./server/.env
+cp .env.example server/.env
 ```
 
-Install dependencies:
+The example configuration uses the in-memory data store, so Google Cloud credentials are not required for local development. Add a Gemini key to enable AI extraction:
+
+```env
+GEMINI_API_KEY=your_key_here
+JWT_SECRET=replace_with_a_long_random_value
+```
+
+### 2. Install and start
 
 ```bash
 npm run install:all
 ```
 
-Start the backend and frontend in separate terminals:
+Run the API and web client in separate terminals:
 
 ```bash
 npm run dev:server
 npm run dev:client
 ```
 
-The backend runs on:
+Open [http://localhost:5173](http://localhost:5173). The API runs on port `8080`, and Vite proxies `/api` requests to it.
 
-```text
-http://localhost:8080
-```
+Local in-memory data resets whenever the server restarts. To create repeatable demo accounts, set `SEED_TEST_USERS=true` in `server/.env`.
 
-The Vite frontend runs on:
+### Troubleshooting Firestore credentials
 
-```text
-http://localhost:5173
-```
+If the server reports `Could not load the default credentials`, it is attempting to connect to Firestore without Google Cloud credentials.
 
-Vite proxies `/api` requests to the backend during local development.
-
-## Local Database Mode
-
-For local development without Firestore credentials, use the in-memory database fallback:
+For local development, confirm that `server/.env` contains:
 
 ```env
 USE_IN_MEMORY_DB=true
 FIRESTORE_PROJECT_ID=local
 ```
 
-In-memory data resets when the server restarts. The deployed GKE version uses Firestore for persistent data.
+Restart the server after changing the file:
 
-## Docker
+```bash
+npm run dev:server
+```
 
-Build and run the production-style container locally:
+To use Firestore locally instead of the in-memory store, authenticate with Google Cloud Application Default Credentials:
+
+```bash
+gcloud auth application-default login
+```
+
+## Test and build
+
+Run the automated split-calculation test and create a production frontend build:
+
+```bash
+npm run check
+```
+
+Run the production-style application in Docker:
 
 ```bash
 npm run docker:build
 npm run docker:run
 ```
 
-Equivalent commands:
-
-```bash
-docker build -t fairshare .
-docker run --env-file server/.env -p 8080:8080 fairshare
-```
-
-Then open:
-
-```text
-http://localhost:8080
-```
-
-This mode serves the built React frontend and Express API from the same container, which is closer to the GKE deployment behavior than Vite dev mode.
-
-## Test Users
-
-For local testing, set this in `server/.env` before starting the server:
-
-```env
-SEED_TEST_USERS=true
-```
-
-Then `npm run dev:server` creates or resets these accounts on startup:
-
-| Email               | Password       |
-| ------------------- | -------------- |
-| `yinan@example.com` | `Password123!` |
-| `alice@example.com` | `Password123!` |
-| `bob@example.com`   | `Password123!` |
-| `chloe@example.com` | `Password123!` |
-
-If the server is already running, seed them manually:
-
-```bash
-npm run seed:users --prefix server
-```
-
-The seed endpoint is disabled when `NODE_ENV=production`.
-
-## Environment Variables
-
-Important server variables:
-
-```env
-NODE_ENV=development
-PORT=8080
-JWT_SECRET=
-CLIENT_ORIGIN=
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_FALLBACK_MODEL=gemini-2.5-flash-lite
-FIRESTORE_PROJECT_ID=
-USE_IN_MEMORY_DB=
-SEED_TEST_USERS=
-```
-
-Local development usually uses:
-
-```env
-USE_IN_MEMORY_DB=true
-FIRESTORE_PROJECT_ID=local
-```
-
-The deployed GKE environment uses:
-
-```env
-USE_IN_MEMORY_DB=false
-FIRESTORE_PROJECT_ID=gen-lang-client-0783211563
-CLIENT_ORIGIN=https://34.102.228.238.sslip.io
-```
-
-Secrets are provided locally through `server/.env` and in GKE through the Kubernetes Secret named `fairshare-secrets`. Do not commit real secrets to GitHub.
-
-## Verification Commands
-
-Run these before deployment:
-
-```bash
-npm run check
-npm test --prefix server
-npm run build --prefix client
-npm audit --prefix client --omit=dev
-npm audit --prefix server --omit=dev
-docker build -t fairshare .
-docker run --env-file server/.env -p 8080:8080 fairshare
-```
-
-Health check:
-
-```bash
-curl -i http://localhost:8080/api/health
-```
-
-Deployed health check:
-
-```bash
-curl -I https://34.102.228.238.sslip.io/api/health
-```
+Then open [http://localhost:8080](http://localhost:8080).
 
 ## Deployment
 
-FairShare is deployed to GKE using Docker, Artifact Registry, GitHub Actions, Firestore, GKE Ingress, cert-manager, and Let's Encrypt.
+Pushes to `main` trigger the deployment workflow:
 
-### GCP resources used
+1. Install dependencies and run tests.
+2. Build the React application and Docker image.
+3. Push the image to Google Artifact Registry.
+4. Apply the Kubernetes manifests.
+5. Deploy the new image and wait for a successful rollout.
 
-* Project: `gen-lang-client-0783211563`
-* Region: `us-west1`
-* Zone: `us-west1-a`
-* Artifact Registry repository: `fairshare`
-* GKE cluster: `fairshare-cluster`
-* Public hostname: `34.102.228.238.sslip.io`
-* HTTPS certificate: cert-manager + Let's Encrypt
-* TLS secret: `fairshare-tls`
+The GKE deployment runs two replicas with readiness and liveness probes. Firestore provides persistent storage, while cert-manager and Let's Encrypt provide HTTPS. Runtime credentials are injected through GitHub Actions and Kubernetes secrets; no real secrets belong in the repository.
 
-The project initially targeted `e2-micro` nodes. Because the pods could not be scheduled due to GKE memory constraints, the deployment uses `e2-small` nodes.
-
-### Kubernetes resources
-
-Important manifests:
-
-```text
-k8s/deployment.yaml
-k8s/service.yaml
-k8s/ingress.yaml
-k8s/cluster-issuer.yaml
-```
-
-`k8s/managed-certificate.yaml` is not used in the final deployment because HTTPS is handled by cert-manager and Let's Encrypt.
-
-### Kubernetes secret
-
-The cluster expects a secret named:
-
-```text
-fairshare-secrets
-```
-
-It contains the production environment variables such as:
-
-```text
-JWT_SECRET
-CLIENT_ORIGIN
-GEMINI_API_KEY
-GEMINI_MODEL
-GEMINI_FALLBACK_MODEL
-FIRESTORE_PROJECT_ID
-USE_IN_MEMORY_DB
-```
-
-### GitHub Actions
-
-Deployment is triggered by `.github/workflows/deploy.yml`.
-
-The workflow:
-
-1. Checks out the repository.
-2. Installs dependencies.
-3. Runs project checks.
-4. Runs backend tests.
-5. Builds the client.
-6. Authenticates to Google Cloud.
-7. Builds a Docker image.
-8. Pushes the image to Artifact Registry.
-9. Gets GKE credentials.
-10. Applies Kubernetes manifests.
-11. Updates the GKE Deployment image.
-12. Waits for rollout success.
-
-Required GitHub Actions secrets:
-
-```text
-GCP_SERVICE_ACCOUNT_KEY
-GCP_PROJECT_ID
-ARTIFACT_REGISTRY_REGION
-ARTIFACT_REGISTRY_REPOSITORY
-GKE_CLUSTER
-GKE_ZONE
-```
-
-Current values:
-
-```text
-GCP_PROJECT_ID=gen-lang-client-0783211563
-ARTIFACT_REGISTRY_REGION=us-west1
-ARTIFACT_REGISTRY_REPOSITORY=fairshare
-GKE_CLUSTER=fairshare-cluster
-GKE_ZONE=us-west1-a
-```
-
-Successful GitHub Actions logs are stored in the `logs/` directory.
-
-## Useful GKE Commands
-
-Check deployment:
-
-```bash
-kubectl get pods
-kubectl get service fairshare
-kubectl get ingress fairshare
-kubectl get certificate
-```
-
-Show health:
-
-```bash
-curl -I https://34.102.228.238.sslip.io/api/health
-```
-
-Show logs:
-
-```bash
-kubectl logs -f deployment/fairshare
-```
-
-Self-healing demo:
-
-```bash
-kubectl get pods
-kubectl delete pod POD_NAME
-kubectl get pods --watch
-```
-
-Manual scaling demo:
-
-```bash
-kubectl scale deployment/fairshare --replicas=1
-kubectl get pods
-kubectl scale deployment/fairshare --replicas=2
-kubectl get pods
-```
-
-Leave the deployment at 2 replicas after the demo.
-
-## Notes for Grading
-
-FairShare uses React as a SPA, Express as the backend, Firestore as the persistent database, Gemini for AI-assisted receipt extraction, Canvas and Drag and Drop as meaningful HTML5 APIs, SSE for server-initiated notifications, PWA offline support, JWT HTTP-only cookie authentication, Docker, GKE, HTTPS, and GitHub Actions CI/CD.
-
-The final deployed app is available at:
-
-```text
-https://34.102.228.238.sslip.io
-```
+The application was deployed at `https://34.102.228.238.sslip.io`. The GKE cluster is currently shut down to avoid ongoing cloud costs, so the hosted demo is temporarily unavailable. The Docker and Kubernetes configuration remains in this repository, and the application can be run locally with the steps above.
