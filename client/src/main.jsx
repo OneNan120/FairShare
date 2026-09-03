@@ -483,7 +483,7 @@ function ReceiptEditor({ receipt, setReceipt, members, defaultAssignmentMode = '
     <div className="editorGrid">
       <section className="panel"><h2>Review receipt</h2>
         {['title', 'merchant', 'date', 'category'].map((key) => <label key={key}>{key}<input value={receipt[key] || ''} onChange={(e) => setField(key, e.target.value)} /></label>)}
-        <div className="moneyGrid">{['subtotal', 'tax', 'tip', 'total'].map((key) => <label key={key}>{key}<input type="number" step="0.01" value={receipt[key] || 0} onChange={(e) => setField(key, Number(e.target.value))} /></label>)}</div>
+        <div className="moneyGrid">{['subtotal', 'tax', 'tip', 'total'].map((key) => <label key={key}>{key === 'tip' ? 'Tip / Service' : key}<input type="number" step="0.01" value={receipt[key] || 0} readOnly={key === 'subtotal' || key === 'total'} onChange={(e) => setField(key, Number(e.target.value))} /></label>)}</div>
         <h3>Items</h3>{receipt.items.map((item, index) => <article className="itemEdit" key={item.id}>
           <input aria-label="Item name" value={item.name} onChange={(e) => updateItem(index, { name: e.target.value })} />
           <input aria-label="Item price" type="number" step="0.01" value={item.price} onChange={(e) => updateItem(index, { price: Number(e.target.value) })} />
@@ -729,7 +729,7 @@ function ExpenseDetail() {
   if (loading || error || !expense) return <Layout><StatusPanel loading={loading} error={error || (!expense && 'Expense not found.')} onRetry={load} /></Layout>;
   const approvals = approvalSummary(expense.approvalStatus);
   const myApproval = expense.approvalStatus?.[user.id];
-  const pendingApprovers = approvals.pending.map(([id]) => expense.members.find((m) => m.userId === id)?.name || id);
+  const pendingApprovers = approvals.pending.map(([id]) => expense.members?.find((m) => m.userId === id)?.name || id);
   return (
     <Layout>
       <section className="sectionHead">
@@ -743,7 +743,7 @@ function ExpenseDetail() {
         <section><h2>Items</h2>{expense.imageDataUrl && <img className="receiptImage" src={expense.imageDataUrl} alt={`Receipt for ${expense.title}`} />}{expense.items.map((item) => <article className="row" key={item.id}>{item.name}<strong>{money(item.price)}</strong></article>)}</section>
         <section><h2>Amount owed</h2><BalanceChart rows={Object.values(expense.split || {})} /><SplitPreview rows={Object.values(expense.split || {})} /></section>
       </div>
-      <section><h2>Approval status</h2>{Object.entries(expense.approvalStatus || {}).map(([id, status]) => <article className="row" key={id}>{expense.members.find((m) => m.userId === id)?.name || id}<strong>{status}</strong></article>)}</section>
+      <section><h2>Approval status</h2>{Object.entries(expense.approvalStatus || {}).map(([id, status]) => <article className="row" key={id}>{expense.members?.find((m) => m.userId === id)?.name || id}<strong>{status}</strong></article>)}</section>
       <section className="panel"><h2>Dispute</h2><form className="inlineForm" onSubmit={disputeExpense}><label>Dispute comment<input value={dispute} onChange={(e) => setDispute(e.target.value)} /></label><button>Dispute</button></form>{disputeError && <p className="error">{disputeError}</p>}</section>
       <section><h2>Comments</h2>{comments.map((c) => <article className="comment" key={c.id}><strong>{c.userName}</strong><span className={`tag ${c.kind === 'dispute' ? 'tagDispute' : 'tagNormal'}`}>{c.kind === 'dispute' ? 'Dispute comment' : 'Normal comment'}</span><p>{c.body}</p></article>)}
         <form className="inlineForm" onSubmit={comment}><label>Comment<input value={body} onChange={(e) => setBody(e.target.value)} /></label><button>Add comment</button></form>

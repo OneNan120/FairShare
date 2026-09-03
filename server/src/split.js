@@ -2,6 +2,21 @@ export function roundMoney(value) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
+export function reconcileReceiptTotals(items = [], charges = {}) {
+  const subtotal = roundMoney(items.reduce(
+    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1),
+    0
+  ));
+  const tax = roundMoney(charges.tax);
+  const tipAndService = roundMoney(Number(charges.tip || 0) + Number(charges.serviceCharge || 0));
+  return {
+    subtotal,
+    tax,
+    tip: tipAndService,
+    total: roundMoney(subtotal + tax + tipAndService)
+  };
+}
+
 export function calculateSplit(expense, members = []) {
   const memberIds = new Set(members.map((member) => member.userId));
   const subtotals = {};

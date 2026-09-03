@@ -11,7 +11,7 @@ import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
-import { calculateSplit } from './split.js';
+import { calculateSplit, reconcileReceiptTotals } from './split.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -23,7 +23,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300 }));
-app.use(express.json({ limit: '1mb' }));
+// Receipt images can be up to 5 MB and are stored as base64 in expense JSON.
+// Base64 adds roughly 33% overhead, so leave enough room for the image and
+// the rest of the expense payload.
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 const upload = multer({
@@ -197,27 +200,82 @@ async function notify(userId, type, message, relatedExpenseId = null, relatedGro
 function normalizeAiReceipt(raw = {}) {
   const items = Array.isArray(raw.items) ? raw.items : [];
   const numeric = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+  const itemName = (item, index) => cleanString(
+    item?.name || item?.description || item?.item || item?.label || `Unclear item ${index + 1}`,
+    120
+  );
+  const normalizedItems = items.slice(0, 80).map((item, index) => ({
+    id: item?.id || uuid(),
+    name: itemName(item, index),
+    price: numeric(item?.price ?? item?.amount ?? item?.total),
+    quantity: numeric(item?.quantity || 1) || 1,
+    assignedTo: Array.isArray(item?.assignedTo) ? item.assignedTo.filter(validId) : [],
+    assignedToNames: Array.isArray(item?.assignedToNames) ? item.assignedToNames.map((name) => cleanString(name, 80)) : []
+  }));
+  const serviceCharge = numeric(raw.serviceCharge ?? raw.service_charge ?? raw.serviceFee);
+  const printedSubtotal = numeric(raw.subtotal);
+  const printedTotal = numeric(raw.total);
+  const reconciled = reconcileReceiptTotals(normalizedItems, {
+    tax: raw.tax,
+    tip: raw.tip,
+    serviceCharge
+  });
+  const confidenceNotes = Array.isArray(raw.confidenceNotes)
+    ? raw.confidenceNotes.map((n) => cleanString(n, 240))
+    : [];
+  if (normalizedItems.length && Math.abs(printedSubtotal - reconciled.subtotal) >= 0.02) {
+    confidenceNotes.push(`Printed subtotal ${printedSubtotal.toFixed(2)} differs from assigned items ${reconciled.subtotal.toFixed(2)}; the item sum is used for splitting.`);
+  }
+  if (normalizedItems.length && printedTotal > 0 && Math.abs(printedTotal - reconciled.total) >= 0.02) {
+    confidenceNotes.push(`Printed total ${printedTotal.toFixed(2)} differs from calculated total ${reconciled.total.toFixed(2)}; the calculated total is used.`);
+  }
   return {
     merchant: cleanString(raw.merchant, 120),
     title: cleanString(raw.title || raw.merchant || 'Receipt expense', 160),
     category: cleanString(raw.category || 'Other', 80),
     date: cleanString(raw.date, 40),
-    subtotal: numeric(raw.subtotal),
-    tax: numeric(raw.tax),
-    tip: numeric(raw.tip),
-    total: numeric(raw.total),
-    items: items.slice(0, 80).map((item) => ({
-      id: item.id || uuid(),
-      name: cleanString(item.name || 'Receipt item', 120),
-      price: numeric(item.price),
-      quantity: numeric(item.quantity || 1) || 1,
-      assignedTo: Array.isArray(item.assignedTo) ? item.assignedTo.filter(validId) : [],
-      assignedToNames: Array.isArray(item.assignedToNames) ? item.assignedToNames.map((name) => cleanString(name, 80)) : []
-    })),
+    subtotal: normalizedItems.length ? reconciled.subtotal : printedSubtotal,
+    tax: reconciled.tax,
+    tip: reconciled.tip,
+    total: normalizedItems.length ? reconciled.total : printedTotal,
+    items: normalizedItems,
     source: raw.source === 'gemini' ? 'gemini' : raw.source === 'fallback' ? 'fallback' : undefined,
-    confidenceNotes: Array.isArray(raw.confidenceNotes) ? raw.confidenceNotes.map((n) => cleanString(n, 240)) : []
+    confidenceNotes
   };
 }
+
+const receiptResponseSchema = {
+  type: 'object',
+  properties: {
+    merchant: { type: ['string', 'null'], description: 'Merchant name exactly as printed.' },
+    title: { type: ['string', 'null'], description: 'A short expense title based on the merchant.' },
+    date: { type: ['string', 'null'], description: 'Receipt date as printed.' },
+    category: { type: ['string', 'null'], description: 'Expense category.' },
+    subtotal: { type: ['number', 'null'] },
+    tax: { type: ['number', 'null'] },
+    tip: { type: ['number', 'null'] },
+    serviceCharge: { type: ['number', 'null'], description: 'Mandatory service charge or service fee, separate from tip.' },
+    total: { type: ['number', 'null'] },
+    items: {
+      type: 'array',
+      description: 'Purchased line items only; exclude subtotal, tax, tip, discounts, and payment lines.',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Exact printed item description, preserving meaningful abbreviations.' },
+          price: { type: 'number', description: 'Price for one unit; when only a line total is reliable, use that total and set quantity to 1.' },
+          quantity: { type: 'number', description: 'Purchased quantity; use 1 when none is printed.' },
+          assignedToNames: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['name', 'price', 'quantity', 'assignedToNames'],
+        additionalProperties: false
+      }
+    },
+    confidenceNotes: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['merchant', 'title', 'date', 'category', 'subtotal', 'tax', 'tip', 'serviceCharge', 'total', 'items', 'confidenceNotes'],
+  additionalProperties: false
+};
 
 function regexFallbackReceipt(text) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -234,7 +292,7 @@ function regexFallbackReceipt(text) {
     const label = match[1].trim();
     const amount = Number(match[2]);
     if (/tax/i.test(label)) tax = amount;
-    else if (/tip|gratuity/i.test(label)) tip = amount;
+    else if (/tip|gratuity|service\s*(?:charge|fee)/i.test(label)) tip += amount;
     else if (/total/i.test(label)) total = amount;
     else items.push({ id: uuid(), name: label, price: amount, quantity: 1, assignedTo: [], assignedToNames: [] });
   }
@@ -308,7 +366,11 @@ async function callGemini(parts) {
           },
           body: JSON.stringify({
             contents: [{ role: 'user', parts }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseJsonSchema: receiptResponseSchema,
+              temperature: 0
+            }
           }),
           signal: controller.signal
         }
@@ -357,7 +419,7 @@ async function callGemini(parts) {
 }
 
 function receiptPrompt(extra = '') {
-  return `You are helping parse a group expense receipt for FairShare. Extract merchant, date, category, subtotal, tax, tip, total, and line items. Return strict JSON only with merchant, title, date, category, subtotal, tax, tip, total, items, confidenceNotes. Do not include markdown. Do not invent missing items. If a value is unclear, use null and explain in confidenceNotes. If total does not match item sum, include a confidence note. Use assignedToNames only if the receipt explicitly says who ordered what; otherwise leave assignments empty. The app lets the user correct the result before submission. ${extra}`;
+  return `Transcribe this receipt carefully for FairShare. Read each purchased line item from the receipt itself and copy its printed description into items[].name; never use generic labels such as "Receipt item", "Item", or "Unknown". Preserve meaningful abbreviations and keep separate purchased lines separate. items[].price is the per-unit price because the app multiplies price by quantity. If only a line total is reliably visible, put that total in price and set quantity to 1. Put optional customer-entered tips in tip. Put mandatory service charges, service fees, automatic gratuities, hospitality fees, and similar mandatory charges in serviceCharge, never in items. Preserve the receipt's printed subtotal even when it includes the service charge; the app will separate it. Exclude subtotal, tax, tip, service charges, total, discounts, card/payment details, and change from items. Do not infer products that are unreadable: omit an unreadable line and explain it in confidenceNotes. Check the arithmetic and mention any mismatch in confidenceNotes. Use null for unclear receipt-level values. Only populate assignedToNames when the receipt explicitly identifies who ordered an item; otherwise use an empty array. ${extra}`;
 }
 
 app.get('/api/health', (_req, res) => {
@@ -544,7 +606,11 @@ app.put('/api/expenses/:expenseId', auth, async (req, res) => {
   for (const member of group.members || []) {
     if (involved.has(member.userId) && member.userId !== req.user.id) await notify(member.userId, 'expense_updated', `${group.name}: ${req.user.displayName} updated ${updated.title}. Please approve it again.`, updated.id, group.id);
   }
-  res.json({ ...updated, split: calculateSplit(updated, group.members || []) });
+  res.json({
+    ...updated,
+    split: calculateSplit(updated, group.members || []),
+    members: group.members || []
+  });
 });
 
 app.delete('/api/expenses/:expenseId', auth, async (req, res) => {
